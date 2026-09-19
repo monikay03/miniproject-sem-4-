@@ -1014,6 +1014,13 @@ app.patch('/api/bookings/:id', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+/*app.listen(PORT, () => {
   console.log(`Backend server is running on port ${PORT}`);
-});
+});*/
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Backend server is running on port ${PORT}`);
+  });
+}
+
+export default app;
