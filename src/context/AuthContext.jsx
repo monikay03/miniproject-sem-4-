@@ -13,12 +13,36 @@ export function AuthProvider({ children }) {
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const isSisterOrArtisan = currentUser && (currentUser.role === 'sister' || currentUser.role === 'artisan');
+
+  useEffect(() => {
+    const handleUrlRouting = () => {
+      const path = window.location.pathname;
+      if (path === '/dashboard/sister' || path === '/dashboard') {
+        if (currentUser) {
+          if (currentUser.role === 'sister' || currentUser.role === 'artisan') {
+            setCurrentView('dashboard');
+          } else {
+            // Unauthorized buyer trying to access sister dashboard -> redirect to home
+            setCurrentView('home');
+            window.history.replaceState({}, '', '/');
+          }
+        }
+      }
+    };
+
+    handleUrlRouting();
+    window.addEventListener('popstate', handleUrlRouting);
+    return () => window.removeEventListener('popstate', handleUrlRouting);
+  }, [currentUser]);
+
   useEffect(() => {
     const fetchSession = async () => {
       try {
         const res = await fetch('/auth/user');
         const data = await res.json();
         if (data.authenticated && data.user) {
+          const isSellerRole = data.user.role === 'sister' || data.user.role === 'artisan';
           const fetchedUser = {
             id: data.user.id,
             name: data.user.name,
@@ -30,18 +54,27 @@ export function AuthProvider({ children }) {
             sisterProfile: data.user.sisters?.[0] || null
           };
           setCurrentUser(fetchedUser);
-          if (fetchedUser.role === 'sister') {
+
+          const path = window.location.pathname;
+          if (isSellerRole) {
             setCurrentView('dashboard');
             setDashboardTab('bookings');
+            if (path !== '/dashboard/sister' && path !== '/dashboard') {
+              window.history.replaceState({}, '', '/dashboard/sister');
+            }
           } else {
             setCurrentView('home');
+            if (path === '/dashboard/sister' || path === '/dashboard') {
+              window.history.replaceState({}, '', '/');
+            }
           }
         } else {
           const saved = localStorage.getItem(AUTH_STORAGE_KEY);
           if (saved) {
             const parsed = JSON.parse(saved);
+            const isSellerRole = parsed.role === 'sister' || parsed.role === 'artisan';
             setCurrentUser(parsed);
-            if (parsed.role === 'sister') {
+            if (isSellerRole) {
               setCurrentView('dashboard');
               setDashboardTab('bookings');
             } else {
@@ -54,8 +87,9 @@ export function AuthProvider({ children }) {
         const saved = localStorage.getItem(AUTH_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
+          const isSellerRole = parsed.role === 'sister' || parsed.role === 'artisan';
           setCurrentUser(parsed);
-          if (parsed.role === 'sister') {
+          if (isSellerRole) {
             setCurrentView('dashboard');
             setDashboardTab('bookings');
           } else {
@@ -84,9 +118,10 @@ export function AuthProvider({ children }) {
   const login = (email, password, role = 'buyer') => {
     const name = email.split('@')[0];
     const formattedName = name.charAt(0).toUpperCase() + name.slice(1);
+    const isSellerRole = role === 'sister' || role === 'artisan';
     
     let sisterId = null;
-    if (role === 'sister') {
+    if (isSellerRole) {
       sisterId = 'sister-1'; // Default to first mock sister
     }
 
@@ -100,28 +135,37 @@ export function AuthProvider({ children }) {
     };
 
     setCurrentUser(user);
-    setCurrentView(role === 'sister' ? 'dashboard' : 'home');
-    if (role === 'sister') {
+    if (isSellerRole) {
+      setCurrentView('dashboard');
       setDashboardTab('bookings');
+      window.history.pushState({}, '', '/dashboard/sister');
+    } else {
+      setCurrentView('home');
+      window.history.pushState({}, '', '/');
     }
     setIsOnboardingModalOpen(role === 'buyer');
     return user;
   };
 
   const register = (name, email, password, role = 'buyer') => {
+    const isSellerRole = role === 'sister' || role === 'artisan';
     const user = {
       id: `usr-${Date.now()}`,
       name,
       email,
       role,
       subscription: 'free',
-      sisterId: null
+      sisterId: isSellerRole ? 'sister-1' : null
     };
 
     setCurrentUser(user);
-    setCurrentView(role === 'sister' ? 'dashboard' : 'home');
-    if (role === 'sister') {
+    if (isSellerRole) {
+      setCurrentView('dashboard');
       setDashboardTab('bookings');
+      window.history.pushState({}, '', '/dashboard/sister');
+    } else {
+      setCurrentView('home');
+      window.history.pushState({}, '', '/');
     }
     setIsOnboardingModalOpen(role === 'buyer');
     return user;
@@ -139,6 +183,7 @@ export function AuthProvider({ children }) {
     setDashboardTab('bookings');
     setIsOnboardingModalOpen(false);
     setSearchQuery('');
+    window.history.replaceState({}, '', '/');
   };
 
   const enrollCurrentAsSister = (sisterId) => {
@@ -146,12 +191,13 @@ export function AuthProvider({ children }) {
     const updated = {
       ...currentUser,
       role: 'sister',
-      sisterId
+      sisterId: sisterId || 'sister-1'
     };
     setCurrentUser(updated);
     setDashboardTab('shop');
     setCurrentView('dashboard');
     setIsOnboardingModalOpen(false);
+    window.history.pushState({}, '', '/dashboard/sister');
   };
 
   const switchPlan = (tier) => {
@@ -165,20 +211,38 @@ export function AuthProvider({ children }) {
 
   const toggleDemoRole = () => {
     if (!currentUser) return;
-    const isSister = currentUser.role === 'sister';
-    const updated = {
-      ...currentUser,
-      role: isSister ? 'buyer' : 'sister',
-      sisterId: isSister ? null : (currentUser.sisterId || 'sister-1')
-    };
-    setCurrentUser(updated);
-    setCurrentView(isSister ? 'home' : 'dashboard');
-    if (!isSister) {
-      setDashboardTab('bookings');
+    const isSeller = currentUser.role === 'sister' || currentUser.role === 'artisan';
+    const nextRole = isSeller ? 'buyer' : 'sister';
+    switchDemoRole(nextRole);
+  };
+
+  const switchDemoRole = (targetRole) => {
+    if (targetRole === 'sister') {
+      login('anjali.sister@udaan.org', 'password123', 'sister');
+    } else {
+      login('client.demo@udaan.org', 'password123', 'buyer');
     }
   };
 
+  const exitDemoMode = () => {
+    logout();
+  };
+
   const navigateTo = (view, sisterId = null, tab = null) => {
+    // Role guard: restrict dashboard to sister or artisan
+    if (view === 'dashboard') {
+      const isSeller = currentUser && (currentUser.role === 'sister' || currentUser.role === 'artisan');
+      if (!isSeller) {
+        alert("🔒 Access Restricted: Seller Dashboard is exclusively available for enrolled Skilled Sisters. Please switch to Sister role to view the dashboard.");
+        setCurrentView('home');
+        window.history.replaceState({}, '', '/');
+        return;
+      }
+      window.history.pushState({}, '', '/dashboard/sister');
+    } else if (view === 'home') {
+      window.history.pushState({}, '', '/');
+    }
+
     setCurrentView(view);
     if (sisterId) {
       setActiveSisterId(sisterId);
@@ -186,8 +250,12 @@ export function AuthProvider({ children }) {
       setActiveSisterId(null);
     }
 
-    if (view === 'dashboard' && tab) {
-      setDashboardTab(tab);
+    if (view === 'dashboard') {
+      if (tab === 'bookings' || tab === 'orders' || tab === 'requests') {
+        setDashboardTab('orders');
+      } else if (tab) {
+        setDashboardTab(tab);
+      }
     }
   };
 
@@ -205,6 +273,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       currentUser,
       isAuthenticated,
+      isSisterOrArtisan,
       currentView,
       activeSisterId,
       dashboardTab,
@@ -219,6 +288,8 @@ export function AuthProvider({ children }) {
       enrollCurrentAsSister,
       switchPlan,
       toggleDemoRole,
+      switchDemoRole,
+      exitDemoMode,
       navigateTo
     }}>
       {children}

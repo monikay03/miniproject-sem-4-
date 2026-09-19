@@ -1,167 +1,83 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useSisters } from '../../context/SistersContext';
-import { useBookings } from '../../context/BookingContext';
+import { SisterDashboardProvider, useSisterDashboard } from '../../context/SisterDashboardContext';
+import SisterOverviewHeader from './SisterOverviewHeader';
+import SisterOrdersManager from './SisterOrdersManager';
+import SisterCatalogManager from './SisterCatalogManager';
+import SisterProfileSettings from './SisterProfileSettings';
 import { 
+  LayoutDashboard, 
+  Package, 
+  ShoppingBag, 
+  Store, 
+  TrendingUp, 
+  Zap, 
   Sparkles, 
   ShieldCheck, 
-  Calendar, 
-  Plus, 
-  Trash2, 
-  Zap, 
-  DollarSign, 
-  TrendingUp, 
-  ShoppingBag, 
-  Edit3, 
-  Sliders,
-  CheckCircle,
-  HelpCircle,
-  XCircle,
-  Clock,
-  ArrowRight
+  ArrowLeft,
+  ArrowRight,
+  RefreshCw,
+  LogOut,
+  Lock
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 
-export default function SisterDashboard() {
-  const { currentUser, switchPlan, toggleDemoRole, dashboardTab, setDashboardTab } = useAuth();
+function SisterDashboardContent() {
   const { 
-    sisters, 
-    products, 
-    updateSisterShop, 
-    addSisterService, 
-    deleteSisterService, 
-    addSisterProduct, 
-    deleteSisterProduct,
-    switchSisterPlan
-  } = useSisters();
-  const { bookings, updateBookingStatus } = useBookings();
+    currentUser, 
+    isSisterOrArtisan, 
+    dashboardTab, 
+    setDashboardTab, 
+    switchPlan, 
+    navigateTo
+  } = useAuth();
 
-  const activeTab = dashboardTab || 'bookings';
-  const setActiveTab = (tab) => setDashboardTab(tab);
-  
-  // Find current sister profile
-  const sister = currentUser?.sisterProfile || sisters.find(s => s.id === currentUser?.sisterId) || sisters[0];
+  const { 
+    metrics, 
+    orders, 
+    catalogItems, 
+    toast 
+  } = useSisterDashboard();
 
-  // Shop Management State
-  const [specialty, setSpecialty] = useState(sister?.specialty || '');
-  const [rate, setRate] = useState(sister?.rate || '');
-  const [experience, setExperience] = useState(sister?.experience || '');
-  const [location, setLocation] = useState(sister?.location || '');
-  const [category, setCategory] = useState(sister?.category || 'tailoring');
+  // Single source of truth for the active tab synced directly with dashboardTab
+  const activeTab = (dashboardTab === 'bookings' || dashboardTab === 'requests' || dashboardTab === 'orders') 
+    ? 'orders' 
+    : (dashboardTab || 'overview');
 
-  useEffect(() => {
-    if (sister) {
-      setSpecialty(sister.specialty || '');
-      setRate(sister.rate || '');
-      setExperience(sister.experience || '');
-      setLocation(sister.location || '');
-      setCategory(sister.category || 'tailoring');
-    }
-  }, [sister]);
+  const handleTabChange = (tab) => {
+    setDashboardTab(tab);
+  };
 
-  // Add Service Form
-  const [svcName, setSvcName] = useState('');
-  const [svcPrice, setSvcPrice] = useState('');
-  const [svcDuration, setSvcDuration] = useState('60 mins');
-
-  // Add Product Form
-  const [prodName, setProdName] = useState('');
-  const [prodPrice, setProdPrice] = useState('');
-  const [prodOriginalPrice, setProdOriginalPrice] = useState('');
-  const [prodImage, setProdImage] = useState('');
-  const [prodDesc, setProdDesc] = useState('');
+  const isPro = currentUser?.subscription === 'pro' || metrics?.subscription === 'pro';
 
   // AI Pricing Assistant State
   const [aiServiceName, setAiServiceName] = useState('');
   const [aiSuggestion, setAiSuggestion] = useState(null);
 
-  if (!sister) {
+  // Role Gate Guard: Restrict access to /dashboard/sister
+  if (!currentUser || (!isSisterOrArtisan && currentUser.role !== 'sister' && currentUser.role !== 'artisan')) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-        <h3 className="text-xl font-bold font-serif text-gray-800">No Enrolled Sister Profile Linked</h3>
-        <p className="text-xs text-gray-500 mt-1">Please log out and log back in as a Skilled Sister.</p>
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center animate-fade-in">
+        <div className="w-16 h-16 bg-red-100 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-4">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h2 className="text-2xl font-bold font-serif text-gray-900">
+          Restricted Seller Access
+        </h2>
+        <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+          The Sister / Seller Dashboard is exclusively available for users registered as a <strong>Skilled Sister</strong>.
+        </p>
+        <div className="flex items-center justify-center gap-3 mt-6">
+          <button
+            onClick={() => navigateTo('home')}
+            className="px-5 py-2.5 bg-[#d81b60] hover:bg-[#c2185b] text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
+          >
+            Return to Marketplace Home
+          </button>
+        </div>
       </div>
     );
   }
-
-  const isPro = currentUser?.subscription === 'pro' || sister.subscription === 'pro';
-
-  // Filter bookings for this sister
-  const sisterIdToMatch = sister?._id || sister?.id;
-  const sisterBookings = bookings.filter(b => b.sisterId === sisterIdToMatch || b.sisterId === sister?.id || !b.sisterId);
-  const activeBookings = sisterBookings.filter(b => b.status === 'Pending' || b.status === 'Confirmed' || b.status === 'In Progress');
-  
-  // Filter products for this sister
-  const sisterProducts = products.filter(p => p.sisterId === sister.id);
-
-  // Listing Limit Checks
-  const totalListings = (sister.services?.length || 0) + sisterProducts.length;
-  const listingLimitReached = !isPro && totalListings >= 3;
-
-  // Earnings calculations (Only from Completed bookings)
-  const completedBookings = sisterBookings.filter(b => b.status === 'Completed');
-  const grossEarnings = completedBookings.reduce((sum, b) => sum + (b.totalAmount || b.amount || 0), 0);
-  const platformFeeRate = isPro ? 0 : 0.05;
-  const platformFee = grossEarnings * platformFeeRate;
-  const netEarnings = grossEarnings - platformFee;
-
-  const handleUpdateProfile = (e) => {
-    e.preventDefault();
-    updateSisterShop(sister.id, {
-      specialty,
-      rate: Number(rate),
-      experience,
-      location,
-      category
-    });
-  };
-
-  const handleAddService = (e) => {
-    e.preventDefault();
-    if (listingLimitReached) {
-      alert("⚠️ Free Tier Limit Reached! You can only list up to 3 services/products in total. Upgrade to Udaan Pro for unlimited listings.");
-      return;
-    }
-    if (!svcName.trim() || !svcPrice) return;
-    addSisterService(sister.id, {
-      name: svcName.trim(),
-      price: Number(svcPrice),
-      duration: svcDuration
-    });
-    setSvcName('');
-    setSvcPrice('');
-  };
-
-  const handleAddProduct = (e) => {
-    e.preventDefault();
-    if (listingLimitReached) {
-      alert("⚠️ Free Tier Limit Reached! You can only list up to 3 services/products in total. Upgrade to Udaan Pro for unlimited listings.");
-      return;
-    }
-    if (!prodName.trim() || !prodPrice || !prodImage.trim()) {
-      alert("Please fill in Product Name, Price, and Image URL.");
-      return;
-    }
-    addSisterProduct(sister.id, {
-      name: prodName.trim(),
-      price: Number(prodPrice),
-      originalPrice: prodOriginalPrice ? Number(prodOriginalPrice) : null,
-      image: prodImage.trim(),
-      description: prodDesc.trim() || "Handmade with love by rural skilled artisans.",
-      artisan: sister.name,
-      state: sister.location
-    });
-    setProdName('');
-    setProdPrice('');
-    setProdOriginalPrice('');
-    setProdImage('');
-    setProdDesc('');
-  };
-
-  const handleUpgrade = (tier) => {
-    switchPlan(tier);
-    switchSisterPlan(sister.id, tier);
-  };
 
   const handleGetAiSuggestion = (e) => {
     e.preventDefault();
@@ -171,38 +87,59 @@ export default function SisterDashboard() {
     let text = "Based on local market trends for similar services in your zone, clients are 3x more likely to book services in this range. Pricing at ₹450 is recommended for maximum booking conversions.";
 
     const query = aiServiceName.toLowerCase();
-    if (query.includes('bridal') || query.includes('lehenga') || query.includes('heavy') || query.includes('wedding')) {
-      range = "₹1,500 - ₹3,000";
-      text = "Premium wedding packages are highly sought after. Direct WhatsApp integration badge enables custom high-ticket client chats. We recommend setting a premium rate with raw material inclusions.";
+    if (query.includes('bridal') || query.includes('lehenga') || query.includes('wedding')) {
+      range = "₹1,500 - ₹3,500";
+      text = "Premium bridal fitting and bridal packages are in high demand in your neighborhood. We recommend setting a premium rate with complimentary trial adjustments.";
     } else if (query.includes('blouse') || query.includes('kurti') || query.includes('stitch')) {
       range = "₹400 - ₹750";
-      text = "Stitching services face regular demand. Customers prefer home pick-and-drop fitting. Adding a minor visit charge is recommended.";
-    } else if (query.includes('henna') || query.includes('mehendi') || query.includes('hand')) {
-      range = "₹350 - ₹1,200";
-      text = "Mehendi pricing scales with design complexity. We suggest listing Arabic minimalist packages at ₹350 and bridal packages at ₹2,100.";
-    } else if (query.includes('cook') || query.includes('tiffin') || query.includes('meal')) {
-      range = "₹200 - ₹500";
-      text = "Food services benefit from recurring daily contracts. Propose a weekly trial package to acquire recurring customers.";
+      text = "Stitching services face regular weekly demand. Customers prefer doorstep pickup and delivery fitting. Adding a minor visit charge is recommended.";
+    } else if (query.includes('pottery') || query.includes('vase') || query.includes('terracotta') || query.includes('kulhad')) {
+      range = "₹350 - ₹950";
+      text = "Artisanal clay pottery is popular for eco-friendly home decor. Bundling sets of 4 or 6 increases basket size by 45%.";
+    } else if (query.includes('henna') || query.includes('mehendi')) {
+      range = "₹350 - ₹1,500";
+      text = "Mehendi pricing scales with intricate bridal vs Arabic designs. Setting standard packages at ₹350 and bridal packages at ₹2,100 drives high conversions.";
     }
 
     setAiSuggestion({ range, text });
   };
 
+  const handleUpgradePlan = (tier) => {
+    switchPlan(tier);
+  };
+
+  const activeOrdersCount = orders.filter(o => o.status === 'Pending' || o.status === 'Accepted' || o.status === 'In Progress').length;
+  const totalCatalogCount = catalogItems.length;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      
-      {/* SaaS Upgrade Promo Banner for Free tier */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-fade-in">
+
+
+      {/* Toast Notification Banner */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 p-4 rounded-2xl shadow-2xl border text-xs font-bold flex items-center gap-3 animate-fade-in ${
+          toast.type === 'error'
+            ? 'bg-red-900 text-white border-red-700'
+            : toast.type === 'info'
+              ? 'bg-blue-900 text-white border-blue-700'
+              : 'bg-gray-950 text-white border-warm-700'
+        }`}>
+          <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* SaaS Upgrade Promo Banner for Starter tier */}
       {!isPro && (
-        <div className="mb-8 bg-gradient-to-r from-amber-500 via-[#d81b60] to-pink-900 text-white rounded-3xl p-5 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-amber-500 via-[#d81b60] to-pink-900 text-white rounded-3xl p-5 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 text-center md:text-left">
             <Zap className="w-8 h-8 text-yellow-300 shrink-0 fill-yellow-300 hidden md:block" />
             <div>
-              <h4 className="font-bold text-sm sm:text-base">Upgrade to Udaan Pro today!</h4>
-              <p className="text-xs text-pink-100">Get 3x more client bookings, priority search/map listing, and zero platform commission on completed visits.</p>
+              <h4 className="font-bold text-sm sm:text-base">Upgrade to Udaan Pro Partner</h4>
+              <p className="text-xs text-pink-100">Get unlimited listings, 0% platform commission on doorstep visits, and priority search placement.</p>
             </div>
           </div>
           <button
-            onClick={() => setActiveTab('subscription')}
+            onClick={() => handleTabChange('earnings')}
             className="bg-white hover:bg-pink-50 text-pink-900 font-extrabold px-6 py-2.5 rounded-xl text-xs shadow transition-all active:scale-95 whitespace-nowrap"
           >
             Upgrade to Pro
@@ -210,598 +147,303 @@ export default function SisterDashboard() {
         </div>
       )}
 
-      {/* Dashboard Top Header Block */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-warm-200/80 flex flex-col sm:flex-row items-center justify-between gap-6 mb-8">
-        <div className="flex items-center gap-4 text-center sm:text-left">
-          <img 
-            src={sister.avatar} 
-            alt={sister.name} 
-            className="w-16 h-16 rounded-full object-cover ring-2 ring-brand-pink"
-          />
-          <div>
-            <div className="flex items-center gap-2 justify-center sm:justify-start">
-              <h1 className="text-xl sm:text-2xl font-bold font-serif text-gray-900">{sister.name}'s Dashboard</h1>
-              <span className={isPro ? "text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm bg-gradient-to-r from-amber-500 to-yellow-600 text-white" : "text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm bg-warm-100 text-gray-600"}>
-                {isPro ? '★ PRO PARTNER' : 'STARTER TIER'}
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 mt-0.5">{sister.specialty} • {sister.location}</p>
-          </div>
-        </div>
+      {/* Main Tab Navigation Bar */}
+      <div className="bg-white rounded-2xl p-2 shadow-sm border border-warm-200 flex items-center gap-1.5 overflow-x-auto">
+        <button
+          onClick={() => handleTabChange('overview')}
+          className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'overview'
+              ? 'bg-pink-50 text-[#d81b60] border-b-2 sm:border-b-0 sm:border-l-4 border-[#d81b60] shadow-sm'
+              : 'text-gray-600 hover:bg-warm-50 hover:text-gray-900'
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4 text-[#d81b60]" />
+          <span>Overview & Metrics</span>
+        </button>
 
+        <button
+          onClick={() => handleTabChange('orders')}
+          className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'orders'
+              ? 'bg-pink-50 text-[#d81b60] border-b-2 sm:border-b-0 sm:border-l-4 border-[#d81b60] shadow-sm'
+              : 'text-gray-600 hover:bg-warm-50 hover:text-gray-900'
+          }`}
+        >
+          <Package className="w-4 h-4 text-[#d81b60]" />
+          <span>Received Orders</span>
+          {activeOrdersCount > 0 && (
+            <span className="w-5 h-5 bg-[#d81b60] text-white text-[10px] font-black rounded-full flex items-center justify-center animate-pulse">
+              {activeOrdersCount}
+            </span>
+          )}
+        </button>
 
+        <button
+          onClick={() => handleTabChange('catalog')}
+          className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'catalog'
+              ? 'bg-pink-50 text-[#d81b60] border-b-2 sm:border-b-0 sm:border-l-4 border-[#d81b60] shadow-sm'
+              : 'text-gray-600 hover:bg-warm-50 hover:text-gray-900'
+          }`}
+        >
+          <ShoppingBag className="w-4 h-4 text-[#d81b60]" />
+          <span>Products & Services</span>
+          <span className="text-[10px] text-gray-500 font-semibold bg-warm-100 px-2 py-0.5 rounded-full">
+            {totalCatalogCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => handleTabChange('shop')}
+          className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'shop'
+              ? 'bg-pink-50 text-[#d81b60] border-b-2 sm:border-b-0 sm:border-l-4 border-[#d81b60] shadow-sm'
+              : 'text-gray-600 hover:bg-warm-50 hover:text-gray-900'
+          }`}
+        >
+          <Store className="w-4 h-4 text-[#d81b60]" />
+          <span>Studio Settings</span>
+        </button>
+
+        <button
+          onClick={() => handleTabChange('earnings')}
+          className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'earnings'
+              ? 'bg-pink-50 text-[#d81b60] border-b-2 sm:border-b-0 sm:border-l-4 border-[#d81b60] shadow-sm'
+              : 'text-gray-600 hover:bg-warm-50 hover:text-gray-900'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4 text-[#d81b60]" />
+          <span>Earnings & Plans</span>
+          {isPro && <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
+        </button>
       </div>
 
-      {/* Grid Dashboard Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Left Side Tab Navigation Column */}
-        <div className="lg:col-span-3 space-y-3">
-          <div className="bg-white rounded-2xl p-2 shadow-sm border border-warm-200 flex flex-col gap-1.5">
-            
-            {/* Tab 1: Service Requests */}
-            <button
-              onClick={() => setActiveTab('bookings')}
-              className={"w-full py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-left transition-all flex items-center justify-between " + (activeTab === 'bookings' ? 'bg-pink-50 text-[#d81b60] border-l-4 border-[#d81b60] shadow-sm' : 'text-gray-600 hover:bg-warm-50 hover:text-gray-900')}
-            >
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#d81b60]" />
-                <span>Service Requests</span>
-              </div>
-              {activeBookings.length > 0 && (
-                <span className="w-5 h-5 bg-[#d81b60] text-white text-[10px] font-black rounded-full flex items-center justify-center">
-                  {activeBookings.length}
-                </span>
-              )}
-            </button>
+      {/* --- TAB CONTENT AREA --- */}
 
-            {/* Tab 2: My Shopfront Manager */}
-            <button
-              onClick={() => setActiveTab('shop')}
-              className={"w-full py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-left transition-all flex items-center justify-between " + (activeTab === 'shop' ? 'bg-pink-50 text-[#d81b60] border-l-4 border-[#d81b60] shadow-sm' : 'text-gray-600 hover:bg-warm-50 hover:text-gray-900')}
-            >
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-[#d81b60]" />
-                <span>My Shopfront Manager</span>
-              </div>
-              <span className="text-[10px] text-gray-500 font-semibold bg-warm-100 px-2 py-0.5 rounded-full">
-                {totalListings}
-              </span>
-            </button>
-
-            {/* Tab 3: Earnings & Plan Tiers */}
-            <button
-              onClick={() => setActiveTab('subscription')}
-              className={"w-full py-3.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-left transition-all flex items-center justify-between " + (activeTab === 'subscription' ? 'bg-pink-50 text-[#d81b60] border-l-4 border-[#d81b60] shadow-sm' : 'text-gray-600 hover:bg-warm-50 hover:text-gray-900')}
-            >
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-[#d81b60]" />
-                <span>Earnings & Plan Tiers</span>
-              </div>
-              {isPro && <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
-            </button>
-
-          </div>
-        </div>
-
-        {/* Right Side Content Body (9 cols) */}
-        <div className="lg:col-span-9">
+      {/* TAB 1: Overview & Metrics */}
+      {activeTab === 'overview' && (
+        <div className="space-y-8">
+          <SisterOverviewHeader onNavigateTab={handleTabChange} />
           
-          {/* TAB 1: Service Requests (incoming bookings) */}
-          {activeTab === 'bookings' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-warm-200/80">
-                <div className="flex items-center justify-between mb-6 pb-3 border-b border-warm-150">
-                  <h3 className="text-lg font-bold font-serif text-gray-900 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-[#d81b60]" />
-                    Client Doorstep Service Requests
-                  </h3>
-                  <span className="text-xs text-gray-500">
-                    {sisterBookings.length} Total Bookings ({activeBookings.length} Active)
-                  </span>
-                </div>
+          {/* Quick Recent Orders Preview */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold font-serif text-gray-900 flex items-center gap-2">
+                <Package className="w-5 h-5 text-[#d81b60]" />
+                Latest Received Orders
+              </h3>
+              <button
+                onClick={() => handleTabChange('orders')}
+                className="text-xs text-[#d81b60] font-bold hover:underline"
+              >
+                View all orders →
+              </button>
+            </div>
+            <SisterOrdersManager />
+          </div>
+        </div>
+      )}
 
-                {sisterBookings.length === 0 ? (
-                  <div className="text-center py-12 bg-warm-50 rounded-2xl p-6 border border-warm-200">
-                    <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                    <p className="text-xs text-gray-500">No booking requests received yet. Enhance your shop listings to attract clients!</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {sisterBookings.map(booking => {
-                      const isCompleted = booking.status === 'Completed';
-                      const isCancelled = booking.status === 'Cancelled' || booking.status === 'Rejected';
-                      const isConfirm = booking.status === 'Confirmed';
-                      const isInProgress = booking.status === 'In Progress';
-                      const isPending = booking.status === 'Pending';
+      {/* TAB 2: Orders Management */}
+      {activeTab === 'orders' && (
+        <SisterOrdersManager />
+      )}
 
-                      return (
-                        <div 
-                          key={booking.id}
-                          className={"p-5 rounded-2xl border transition-all " + (isCompleted ? 'bg-emerald-50/20 border-emerald-300' : isCancelled ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-warm-200 hover:border-pink-300 shadow-sm')}
-                        >
-                          <div className="flex items-start justify-between gap-4 flex-wrap sm:flex-nowrap mb-3 border-b border-warm-100 pb-3">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-bold text-pink-700 bg-pink-50 px-2 py-0.5 rounded border border-pink-200">
-                                  {booking.bookingRef}
-                                </span>
-                                <span className={"text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider " + (isCompleted ? 'bg-emerald-100 text-emerald-800' : isCancelled ? 'bg-gray-100 text-gray-600' : isInProgress ? 'bg-blue-100 text-blue-800' : isPending ? 'bg-amber-100 text-amber-800' : 'bg-pink-100 text-pink-800')}>
-                                  {booking.status}
-                                </span>
-                              </div>
-                              <h4 className="font-bold text-sm text-gray-900 mt-2">{booking.serviceName}</h4>
-                              <p className="text-[11px] text-gray-500">Booked by client: <strong className="text-gray-800">{booking.customerName}</strong></p>
-                            </div>
+      {/* TAB 3: Catalog Management */}
+      {activeTab === 'catalog' && (
+        <SisterCatalogManager onOpenUpgrade={() => handleTabChange('earnings')} />
+      )}
 
-                            <div className="text-right">
-                              <span className="text-base font-extrabold text-pink-700 block">
-                                {formatCurrency(booking.totalAmount || booking.amount)}
-                              </span>
-                              <span className="text-[10px] text-gray-400">COD (Pay after visit)</span>
-                            </div>
-                          </div>
+      {/* TAB 4: Shop Settings & Profile */}
+      {activeTab === 'shop' && (
+        <SisterProfileSettings />
+      )}
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600 bg-warm-50/80 p-3 rounded-xl mb-4">
-                            <div>📅 Date: <strong className="text-gray-850">{booking.date}</strong></div>
-                            <div>🕒 Slot: <strong className="text-gray-850">{booking.timeSlot}</strong></div>
-                            <div>📞 Phone: <strong className="text-gray-850">{booking.customerPhone}</strong></div>
-                            <div className="sm:col-span-2">📍 Address: <strong className="text-gray-850">{booking.customerAddress}</strong></div>
-                          </div>
+      {/* TAB 5: Earnings & SaaS Plan Tiers */}
+      {activeTab === 'earnings' && (
+        <div className="space-y-8">
+          {/* Earnings Breakdown */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-warm-200">
+            <h3 className="text-lg font-bold font-serif text-gray-900 mb-6 flex items-center gap-2 pb-3 border-b border-warm-150">
+              <TrendingUp className="w-5 h-5 text-[#d81b60]" />
+              Business Revenue & Payout Balance
+            </h3>
 
-                          {/* Action Controls */}
-                          {(isPending || isConfirm || isInProgress) && (
-                            <div className="flex items-center justify-end gap-3 pt-1">
-                              <button
-                                onClick={() => updateBookingStatus(booking.id, 'Rejected')}
-                                className="text-xs text-gray-500 hover:text-red-600 font-bold py-2 px-3.5 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-1"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                                <span>Reject / Decline</span>
-                              </button>
-                              
-                              {(isPending || isConfirm) && (
-                                <button
-                                  onClick={() => updateBookingStatus(booking.id, isPending ? 'Confirmed' : 'In Progress')}
-                                  className="bg-[#d81b60] hover:bg-[#c2185b] text-white text-xs font-bold py-2 px-5 rounded-xl shadow-sm transition-all flex items-center gap-1.5"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  <span>{isPending ? 'Accept Request' : 'Mark In Progress'}</span>
-                                </button>
-                              )}
-
-                              {isInProgress && (
-                                <button
-                                  onClick={() => updateBookingStatus(booking.id, 'Completed')}
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-5 rounded-xl shadow-sm transition-all flex items-center gap-1.5"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  <span>Mark as Completed</span>
-                                </button>
-                              )}
-                            </div>
-                          )}
-
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+              <div className="bg-warm-50 p-4 rounded-2xl border border-warm-200 text-center">
+                <span className="text-xs text-gray-500">Completed Orders</span>
+                <strong className="block text-2xl font-serif text-gray-900 mt-1">
+                  {metrics.completedOrders || 0}
+                </strong>
+              </div>
+              <div className="bg-warm-50 p-4 rounded-2xl border border-warm-200 text-center">
+                <span className="text-xs text-gray-500">Gross Sales</span>
+                <strong className="block text-2xl font-serif text-pink-700 mt-1">
+                  {formatCurrency(metrics.totalRevenue || 0)}
+                </strong>
+              </div>
+              <div className="bg-warm-50 p-4 rounded-2xl border border-warm-200 text-center">
+                <span className="text-xs text-gray-500">Platform Commission ({isPro ? '0%' : '5%'})</span>
+                <strong className="block text-2xl font-serif text-red-600 mt-1">
+                  -{formatCurrency((metrics.totalRevenue || 0) * (isPro ? 0 : 0.05))}
+                </strong>
+              </div>
+              <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200 text-center">
+                <span className="text-xs text-emerald-800 font-semibold">Net Payout</span>
+                <strong className="block text-2xl font-serif text-emerald-900 mt-1 font-extrabold">
+                  {formatCurrency((metrics.totalRevenue || 0) * (isPro ? 1 : 0.95))}
+                </strong>
               </div>
             </div>
-          )}
+            <p className="text-xs text-gray-400 text-center">
+              *Real-time earnings updated immediately whenever an order is marked as Completed.
+            </p>
+          </div>
 
-          {/* TAB 2: My Shopfront Manager */}
-          {activeTab === 'shop' && (
-            <div className="space-y-6">
-              
-              {/* Profile Details Edit Form */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-warm-200/80">
-                <h3 className="text-base font-bold font-serif text-gray-900 mb-4 flex items-center gap-2 border-b border-warm-150 pb-2">
-                  <Edit3 className="w-4.5 h-4.5 text-[#d81b60]" />
-                  Edit Shop Profile Details
-                </h3>
+          {/* Plan Tiers */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-warm-200">
+            <h3 className="text-lg font-bold font-serif text-gray-900 mb-6 flex items-center gap-2 pb-3 border-b border-warm-150">
+              <Zap className="w-5 h-5 text-[#d81b60]" />
+              Partner Membership Tiers
+            </h3>
 
-                <form onSubmit={handleUpdateProfile} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Specialty Title</label>
-                      <input
-                        type="text"
-                        value={specialty}
-                        onChange={(e) => setSpecialty(e.target.value)}
-                        className="w-full text-sm px-3.5 py-2 rounded-xl border border-warm-300 focus:outline-none focus:ring-1 focus:ring-pink-500"
-                        placeholder="e.g. Boutique Tailoring & Alteration"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Base Visit Fee (₹)</label>
-                      <input
-                        type="number"
-                        value={rate}
-                        onChange={(e) => setRate(e.target.value)}
-                        className="w-full text-sm px-3.5 py-2 rounded-xl border border-warm-300 focus:outline-none focus:ring-1 focus:ring-pink-500"
-                        placeholder="e.g. 400"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Location Zone</label>
-                      <input
-                        type="text"
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        className="w-full text-sm px-3.5 py-2 rounded-xl border border-warm-300 focus:outline-none focus:ring-1 focus:ring-pink-500"
-                        placeholder="e.g. Sector 14, Urban Enclave"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Skill Category</label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="w-full text-sm px-3.5 py-2 rounded-xl border border-warm-300 bg-white"
-                      >
-                        <option value="tailoring">Boutique Tailoring</option>
-                        <option value="mehendi">Mehendi Artist</option>
-                        <option value="cooking">Home Cook & Tiffin</option>
-                        <option value="beauty">Beauty & Skincare</option>
-                        <option value="yoga">Yoga Instructor</option>
-                        <option value="tutoring">Handicraft Tutor</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Bio / Experience Story</label>
-                    <textarea
-                      rows={3}
-                      value={experience}
-                      onChange={(e) => setExperience(e.target.value)}
-                      className="w-full text-sm px-3.5 py-2 rounded-xl border border-warm-300 focus:outline-none focus:ring-1 focus:ring-pink-500 resize-none"
-                      placeholder="Tell customers about your skills..."
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="bg-[#d81b60] hover:bg-[#c2185b] text-white font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-sm active:scale-95"
-                  >
-                    Save Shop Details
-                  </button>
-                </form>
-              </div>
-
-              {/* Service packages list & Add service */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-warm-200/80">
-                <div className="flex items-center justify-between border-b border-warm-150 pb-2 mb-4">
-                  <h3 className="text-base font-bold font-serif text-gray-900 flex items-center gap-2">
-                    <Sliders className="w-4.5 h-4.5 text-[#d81b60]" />
-                    Manage Offered Service Packages
-                  </h3>
-                  <span className={listingLimitReached ? "text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700" : "text-[10px] font-bold px-2 py-0.5 rounded-full bg-pink-100 text-pink-700"}>
-                    Total Listings: {totalListings}{!isPro ? " / 3 Limit" : ""}
-                  </span>
-                </div>
-
-                {/* Services list */}
-                <div className="space-y-2 mb-6">
-                  {(sister.services || []).map(svc => (
-                    <div key={svc.id} className="flex items-center justify-between bg-warm-50 px-4 py-2.5 rounded-xl border border-warm-200 text-xs sm:text-sm">
-                      <div>
-                        <strong className="text-gray-800">{svc.name}</strong>
-                        <span className="text-[10px] text-gray-400 ml-2">({svc.duration || '60 mins'})</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-extrabold text-pink-700">{formatCurrency(svc.price)}</span>
-                        <button
-                          onClick={() => deleteSisterService(sister.id, svc.id)}
-                          className="text-gray-400 hover:text-red-600 p-1 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Add Service form */}
-                <form onSubmit={handleAddService} className="bg-warm-50/50 p-4 rounded-2xl border border-warm-200/80 space-y-3">
-                  <span className="block text-xs font-bold text-gray-700 uppercase tracking-wide">Add Custom Service Package</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input
-                      type="text"
-                      required
-                      placeholder="Service Name (e.g. Designer Kurti)"
-                      value={svcName}
-                      onChange={(e) => setSvcName(e.target.value)}
-                      className="text-xs px-3 py-2 rounded-xl border border-warm-300"
-                    />
-                    <input
-                      type="number"
-                      required
-                      placeholder="Price (₹)"
-                      value={svcPrice}
-                      onChange={(e) => setSvcPrice(e.target.value)}
-                      className="text-xs px-3 py-2 rounded-xl border border-warm-300 font-bold"
-                    />
-                    <select
-                      value={svcDuration}
-                      onChange={(e) => setSvcDuration(e.target.value)}
-                      className="text-xs px-3 py-2 rounded-xl border border-warm-300 bg-white"
-                    >
-                      <option value="30 mins">30 mins</option>
-                      <option value="60 mins">60 mins</option>
-                      <option value="90 mins">90 mins</option>
-                      <option value="120 mins">120 mins</option>
-                    </select>
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full sm:w-auto bg-pink-100 hover:bg-[#d81b60] text-brand-pink hover:text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Package
-                  </button>
-                </form>
-              </div>
-
-              {/* Products list & Add product */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-warm-200/80">
-                <h3 className="text-base font-bold font-serif text-gray-900 border-b border-warm-150 pb-2 mb-4 flex items-center gap-2">
-                  <ShoppingBag className="w-4.5 h-4.5 text-[#d81b60]" />
-                  List Handmade Craft Products
-                </h3>
-
-                {/* Products list */}
-                <div className="space-y-2 mb-6">
-                  {sisterProducts.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center py-4 bg-warm-50 rounded-xl">No physical craft products listed in your shop.</p>
-                  ) : (
-                    sisterProducts.map(prod => (
-                      <div key={prod.id} className="flex items-center justify-between bg-warm-50 px-4 py-2.5 rounded-xl border border-warm-200 text-xs sm:text-sm">
-                        <div className="flex items-center gap-3">
-                          <img src={prod.image} alt={prod.name} className="w-8 h-8 rounded object-cover" />
-                          <strong className="text-gray-800 truncate max-w-[200px]">{prod.name}</strong>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-extrabold text-pink-700">{formatCurrency(prod.price)}</span>
-                          <button
-                            onClick={() => deleteSisterProduct(sister.id, prod.id)}
-                            className="text-gray-400 hover:text-red-600 p-1 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Add product form */}
-                <form onSubmit={handleAddProduct} className="bg-warm-50/50 p-4 rounded-2xl border border-warm-200/80 space-y-3">
-                  <span className="block text-xs font-bold text-gray-700 uppercase tracking-wide">List New Handmade Craft Product</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      placeholder="Product Name"
-                      value={prodName}
-                      onChange={(e) => setProdName(e.target.value)}
-                      className="text-xs px-3 py-2 rounded-xl border border-warm-300"
-                    />
-                    <input
-                      type="url"
-                      placeholder="Image Link (e.g. Unsplash URL)"
-                      value={prodImage}
-                      onChange={(e) => setProdImage(e.target.value)}
-                      className="text-xs px-3 py-2 rounded-xl border border-warm-300"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Price (₹)"
-                      value={prodPrice}
-                      onChange={(e) => setProdPrice(e.target.value)}
-                      className="text-xs px-3 py-2 rounded-xl border border-warm-300 font-bold"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Original Price (₹ - Optional)"
-                      value={prodOriginalPrice}
-                      onChange={(e) => setProdOriginalPrice(e.target.value)}
-                      className="text-xs px-3 py-2 rounded-xl border border-warm-300"
-                    />
-                  </div>
-                  <textarea
-                    rows={2}
-                    placeholder="Short Product Description (materials, dimensions...)"
-                    value={prodDesc}
-                    onChange={(e) => setProdDesc(e.target.value)}
-                    className="w-full text-xs px-3 py-2 rounded-xl border border-warm-300 resize-none"
-                  />
-                  <button
-                    type="submit"
-                    className="w-full sm:w-auto bg-pink-100 hover:bg-[#d81b60] text-brand-pink hover:text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> List Product
-                  </button>
-                </form>
-              </div>
-
-            </div>
-          )}
-
-          {/* TAB 3: Earnings & Plan Tiers */}
-          {activeTab === 'subscription' && (
-            <div className="space-y-6">
-              
-              {/* Dynamic Income Stats */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-warm-200/80">
-                <h3 className="text-base font-bold font-serif text-gray-900 mb-6 flex items-center gap-2 border-b border-warm-150 pb-2">
-                  <TrendingUp className="w-4.5 h-4.5 text-[#d81b60]" />
-                  My Business Revenue & Payouts
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-warm-50 p-4 rounded-2xl border border-warm-200 text-center">
-                    <span className="text-xs text-gray-500">Completed Visits</span>
-                    <strong className="block text-2xl font-serif text-gray-900 mt-1">{completedBookings.length}</strong>
-                  </div>
-                  <div className="bg-warm-50 p-4 rounded-2xl border border-warm-200 text-center">
-                    <span className="text-xs text-gray-500">Gross Revenue</span>
-                    <strong className="block text-2xl font-serif text-gray-900 mt-1 text-pink-700">{formatCurrency(grossEarnings)}</strong>
-                  </div>
-                  <div className="bg-warm-50 p-4 rounded-2xl border border-warm-200 text-center">
-                    <span className="text-xs text-gray-500">Platform Fee ({isPro ? '0%' : '5%'})</span>
-                    <strong className="block text-2xl font-serif text-gray-900 mt-1 text-red-600">-{formatCurrency(platformFee)}</strong>
-                  </div>
-                  <div className="bg-emerald-50/30 p-4 rounded-2xl border border-emerald-200 text-center">
-                    <span className="text-xs text-emerald-800 font-semibold">Net Payout</span>
-                    <strong className="block text-2xl font-serif text-emerald-900 mt-1 font-extrabold">{formatCurrency(netEarnings)}</strong>
-                  </div>
-                </div>
-
-                <p className="text-[10px] sm:text-xs text-gray-500 text-center">
-                  *Earnings are calculated dynamically from completed visits. Invoiced directly to clients as Cash on Delivery.
-                </p>
-              </div>
-
-              {/* SaaS Subscription Modal Tiers */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-warm-200/80">
-                <h3 className="text-base font-bold font-serif text-gray-900 mb-6 flex items-center gap-2 border-b border-warm-150 pb-2">
-                  <Zap className="w-4.5 h-4.5 text-[#d81b60]" />
-                  SaaS Partner Subscription Tiers
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Starter Tier */}
+              <div className={`p-6 rounded-3xl border-2 flex flex-col justify-between ${
+                !isPro ? 'border-[#d81b60] bg-pink-50/20 shadow-sm' : 'border-warm-200 bg-white'
+              }`}>
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 font-serif">Starter Tier</h4>
+                  <p className="text-[11px] text-gray-500 mt-0.5">For newly enrolled rural sisters</p>
                   
-                  {/* Plan 1: Free Starter */}
-                  <div className={"p-6 rounded-3xl border-2 flex flex-col justify-between " + (!isPro ? 'border-brand-pink bg-pink-50/20 shadow-sm' : 'border-warm-200 bg-white')}>
-                    <div>
-                      <h4 className="text-base font-bold text-gray-900 font-serif">Starter Tier</h4>
-                      <p className="text-[11px] text-gray-500 mt-0.5">Perfect for newly enrolled sisters</p>
-                      
-                      <div className="flex items-baseline gap-1 mt-4 mb-5">
-                        <span className="text-3xl font-serif font-extrabold text-gray-950">₹0</span>
-                        <span className="text-xs text-gray-400">/free forever</span>
-                      </div>
-
-                      <ul className="space-y-2 text-xs text-gray-600 mb-6">
-                        <li className="flex items-center gap-2">✓ Standard listing on interactive map</li>
-                        <li className="flex items-center gap-2">✓ Limit: Up to 3 services/products listings</li>
-                        <li className="flex items-center gap-2">✓ 5% commission platform fee</li>
-                      </ul>
-                    </div>
-
-                    {!isPro ? (
-                      <span className="w-full text-center py-2.5 bg-warm-200 text-gray-700 font-bold rounded-xl text-xs block cursor-default">
-                        Current Active Plan
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleUpgrade('free')}
-                        className="w-full py-2.5 border border-warm-300 hover:bg-warm-50 text-gray-700 font-bold rounded-xl text-xs transition-all active:scale-95"
-                      >
-                        Downgrade to Starter
-                      </button>
-                    )}
+                  <div className="flex items-baseline gap-1 mt-4 mb-5">
+                    <span className="text-3xl font-serif font-extrabold text-gray-950">₹0</span>
+                    <span className="text-xs text-gray-400">/free forever</span>
                   </div>
 
-                  {/* Plan 2: Udaan Pro */}
-                  <div className={"p-6 rounded-3xl border-2 flex flex-col justify-between relative overflow-hidden " + (isPro ? 'border-brand-pink bg-pink-50/20 shadow-lg' : 'border-warm-200 bg-white hover:border-pink-300')}>
-                    {/* Corner Tag */}
-                    <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm">
-                      POPULAR
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="text-base font-bold text-gray-950 font-serif">Udaan Pro</h4>
-                        <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5">Maximize your neighborhood bookings</p>
-                      
-                      <div className="flex items-baseline gap-1 mt-4 mb-5">
-                        <span className="text-3xl font-serif font-extrabold text-pink-700">₹299</span>
-                        <span className="text-xs text-gray-400">/monthly</span>
-                      </div>
-
-                      <ul className="space-y-2 text-xs text-gray-600 mb-6">
-                        <li className="flex items-center gap-2">🚀 <strong>Priority Listing</strong> on Search & Map</li>
-                        <li className="flex items-center gap-2">✓ <strong>Unlimited</strong> service & product listings</li>
-                        <li className="flex items-center gap-2">✓ <strong>Zero commission</strong> on bookings (100% pay)</li>
-                        <li className="flex items-center gap-2">✓ Direct <strong>WhatsApp chat badge</strong></li>
-                        <li className="flex items-center gap-2">✓ <strong>AI Pricing Assistant</strong> access</li>
-                      </ul>
-                    </div>
-
-                    {isPro ? (
-                      <span className="w-full text-center py-2.5 bg-gradient-to-r from-pink-700 to-[#d81b60] text-white font-extrabold rounded-xl text-xs block cursor-default shadow-sm shadow-pink-600/20">
-                        Current Active Plan
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleUpgrade('pro')}
-                        className="w-full py-2.5 bg-gradient-to-r from-pink-700 to-[#d81b60] hover:from-pink-800 hover:to-pink-900 text-white font-bold rounded-xl text-xs transition-all active:scale-95 shadow-md shadow-pink-600/25"
-                      >
-                        Upgrade to Pro
-                      </button>
-                    )}
-                  </div>
-
+                  <ul className="space-y-2 text-xs text-gray-600 mb-6">
+                    <li className="flex items-center gap-2">✓ Standard interactive neighborhood map listing</li>
+                    <li className="flex items-center gap-2">✓ Up to 3 product/service listings</li>
+                    <li className="flex items-center gap-2">✓ 5% platform commission</li>
+                  </ul>
                 </div>
+
+                {!isPro ? (
+                  <span className="w-full text-center py-2.5 bg-warm-200 text-gray-700 font-bold rounded-xl text-xs block cursor-default">
+                    Current Active Tier
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleUpgradePlan('free')}
+                    className="w-full py-2.5 border border-warm-300 hover:bg-warm-50 text-gray-700 font-bold rounded-xl text-xs transition-all active:scale-95"
+                  >
+                    Downgrade to Starter
+                  </button>
+                )}
               </div>
 
-              {/* AI Pricing Assistant */}
-              {isPro ? (
-                <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-pink-200">
-                  <div className="flex items-center gap-2 mb-1.5 border-b border-pink-100 pb-2">
-                    <Zap className="w-5 h-5 text-amber-500 fill-amber-500 animate-bounce" />
-                    <h3 className="text-base font-bold font-serif text-gray-950">AI Pricing Assistant (Pro Feature)</h3>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-4">
-                    Instantly research fair rates for services in your category to stay competitive and attract more local orders.
-                  </p>
-
-                  <form onSubmit={handleGetAiSuggestion} className="flex gap-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter service title (e.g. Bridal Mehendi, Blouse Stitching)"
-                      value={aiServiceName}
-                      onChange={(e) => setAiServiceName(e.target.value)}
-                      className="flex-1 text-xs px-3.5 py-2.5 rounded-xl border border-warm-300"
-                    />
-                    <button
-                      type="submit"
-                      className="bg-gradient-to-r from-[#d81b60] to-pink-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:opacity-90 transition-all"
-                    >
-                      Get Suggestions
-                    </button>
-                  </form>
-
-                  {aiSuggestion && (
-                    <div className="mt-4 p-4 bg-pink-50/50 border border-pink-200 rounded-2xl animate-fade-in space-y-1.5 text-xs text-pink-900">
-                      <p>💡 Recommended Range: <strong className="text-pink-800 text-sm font-extrabold">{aiSuggestion.range}</strong></p>
-                      <p className="text-pink-700/90 leading-relaxed font-light">{aiSuggestion.text}</p>
-                    </div>
-                  )}
+              {/* Pro Tier */}
+              <div className={`p-6 rounded-3xl border-2 flex flex-col justify-between relative overflow-hidden ${
+                isPro ? 'border-[#d81b60] bg-pink-50/20 shadow-lg' : 'border-warm-200 bg-white hover:border-pink-300'
+              }`}>
+                <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm">
+                  POPULAR
                 </div>
-              ) : (
-                <div className="bg-warm-100 rounded-3xl p-6 border border-warm-200 text-center opacity-75">
-                  <Zap className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <h4 className="font-bold text-gray-800 font-serif text-sm">Unlock AI Pricing Assistant</h4>
-                  <p className="text-[11px] text-gray-500 max-w-sm mx-auto mt-1">
-                    Upgrade to Udaan Pro to access pricing advice powered by platform transaction histories in your local zone.
-                  </p>
+
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-base font-bold text-gray-950 font-serif">Udaan Pro Partner</h4>
+                    <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Maximize sales and local booking conversions</p>
+                  
+                  <div className="flex items-baseline gap-1 mt-4 mb-5">
+                    <span className="text-3xl font-serif font-extrabold text-pink-700">₹299</span>
+                    <span className="text-xs text-gray-400">/monthly</span>
+                  </div>
+
+                  <ul className="space-y-2 text-xs text-gray-600 mb-6">
+                    <li className="flex items-center gap-2 font-semibold">🚀 <strong>Priority Map & Search Ranking</strong></li>
+                    <li className="flex items-center gap-2 font-semibold">✓ <strong>Unlimited</strong> craft & service listings</li>
+                    <li className="flex items-center gap-2 font-semibold">✓ <strong>0% Commission</strong> (Keep 100% of revenue)</li>
+                    <li className="flex items-center gap-2 font-semibold">✓ Direct <strong>WhatsApp Chat Badge</strong></li>
+                    <li className="flex items-center gap-2 font-semibold">✓ <strong>AI Pricing Assistant</strong> access</li>
+                  </ul>
+                </div>
+
+                {isPro ? (
+                  <span className="w-full text-center py-2.5 bg-gradient-to-r from-pink-700 to-[#d81b60] text-white font-extrabold rounded-xl text-xs block cursor-default shadow-sm shadow-pink-600/20">
+                    Current Active Tier
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleUpgradePlan('pro')}
+                    className="w-full py-2.5 bg-gradient-to-r from-pink-700 to-[#d81b60] hover:from-pink-800 hover:to-pink-900 text-white font-bold rounded-xl text-xs transition-all active:scale-95 shadow-md shadow-pink-600/25"
+                  >
+                    Upgrade to Udaan Pro (₹299/mo)
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* AI Pricing Assistant */}
+          {isPro ? (
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-pink-200">
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-pink-100">
+                <Zap className="w-5 h-5 text-amber-500 fill-amber-500 animate-bounce" />
+                <h3 className="text-base font-bold font-serif text-gray-950">AI Pricing Assistant (Pro Partner Feature)</h3>
+              </div>
+              <p className="text-xs text-gray-500 mb-4">
+                Research real-time fair rates for craft items and services in your zone to maximize conversion.
+              </p>
+
+              <form onSubmit={handleGetAiSuggestion} className="flex gap-2">
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter craft or service name (e.g. Terracotta Kulhad, Bridal Blouse, Mehendi)..."
+                  value={aiServiceName}
+                  onChange={(e) => setAiServiceName(e.target.value)}
+                  className="flex-1 text-xs px-3.5 py-2.5 rounded-xl border border-warm-300"
+                />
+                <button
+                  type="submit"
+                  className="bg-gradient-to-r from-[#d81b60] to-pink-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:opacity-90 transition-all"
+                >
+                  Get AI Advice
+                </button>
+              </form>
+
+              {aiSuggestion && (
+                <div className="mt-4 p-4 bg-pink-50/60 border border-pink-200 rounded-2xl space-y-1 text-xs text-pink-950 animate-fade-in">
+                  <p>💡 Recommended Fair Price: <strong className="text-pink-800 text-sm font-extrabold">{aiSuggestion.range}</strong></p>
+                  <p className="text-pink-900/90 leading-relaxed font-light">{aiSuggestion.text}</p>
                 </div>
               )}
-
+            </div>
+          ) : (
+            <div className="bg-warm-100 rounded-3xl p-6 border border-warm-200 text-center opacity-75">
+              <Zap className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <h4 className="font-bold text-gray-800 font-serif text-sm">Unlock AI Pricing Assistant</h4>
+              <p className="text-xs text-gray-500 max-w-sm mx-auto mt-1">
+                Upgrade to Udaan Pro to access pricing advice powered by regional transaction histories.
+              </p>
             </div>
           )}
 
         </div>
-
-      </div>
+      )}
 
     </div>
+  );
+}
+
+export default function SisterDashboard() {
+  return (
+    <SisterDashboardProvider>
+      <SisterDashboardContent />
+    </SisterDashboardProvider>
   );
 }

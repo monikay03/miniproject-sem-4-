@@ -63,7 +63,7 @@ export default function Navbar() {
 
   if (!isAuthenticated) return null;
 
-  const isSister = currentUser.role === 'sister';
+  const isSister = currentUser.role === 'sister' || currentUser.role === 'artisan';
   const isPro = currentUser.subscription === 'pro';
 
   // Count requests/bookings
@@ -275,8 +275,7 @@ export default function Navbar() {
 
           {/* RIGHT: Dynamic Actions based on Role */}
           <div className="hidden lg:flex items-center gap-4">
-            
-            {/* 1. Normal User (Buyer) Actions */}
+                    {/* 1. Normal User (Buyer) Actions */}
             {!isSister && (
               <>
                 <button
@@ -312,22 +311,22 @@ export default function Navbar() {
               <>
                 {/* My Dashboard Button */}
                 <button
-                  onClick={() => navigateTo('dashboard', null, 'shop')}
-                  className={`p-2 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold ${
-                    currentView === 'dashboard' && dashboardTab === 'shop'
+                  onClick={() => navigateTo('dashboard', null, 'overview')}
+                  className={`p-2 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer ${
+                    currentView === 'dashboard' && (dashboardTab === 'overview' || !dashboardTab)
                       ? 'text-brand-pink bg-pink-50 ring-1 ring-pink-200'
                       : 'text-gray-700 hover:text-brand-pink hover:bg-pink-50'
                   }`}
                 >
                   <LayoutDashboard className="w-5 h-5 text-gray-500" />
-                  <span>My Dashboard</span>
+                  <span>Dashboard</span>
                 </button>
 
-                {/* Requests Button (Automatically opens Service Requests tab) */}
+                {/* Requests Button (Clickable -> Opens Received Orders & Requests tab) */}
                 <button
-                  onClick={() => navigateTo('dashboard', null, 'bookings')}
-                  className={`p-2 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold ${
-                    currentView === 'dashboard' && dashboardTab === 'bookings'
+                  onClick={() => navigateTo('dashboard', null, 'orders')}
+                  className={`p-2 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer ${
+                    currentView === 'dashboard' && (dashboardTab === 'orders' || dashboardTab === 'bookings' || dashboardTab === 'requests')
                       ? 'text-brand-pink bg-pink-50 ring-1 ring-pink-200'
                       : 'text-gray-700 hover:text-brand-pink hover:bg-pink-50'
                   }`}
@@ -350,11 +349,11 @@ export default function Navbar() {
               </>
             )}
 
-            {/* 3. Global Profile Menu / Avatar and Switch Demo Role Dropdown */}
+            {/* 3. Global Profile Menu / Avatar Dropdown */}
             <div className="relative">
               <button
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="w-10 h-10 rounded-full overflow-hidden border border-warm-300 ring-2 ring-transparent hover:ring-pink-400 transition-all flex items-center justify-center bg-pink-100 text-pink-700 font-extrabold shadow-sm"
+                className="w-10 h-10 rounded-full overflow-hidden border border-warm-300 ring-2 ring-transparent hover:ring-pink-400 transition-all flex items-center justify-center bg-pink-100 text-pink-700 font-extrabold shadow-sm cursor-pointer"
               >
                 {currentUser.avatar ? (
                   <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover" />
@@ -364,20 +363,21 @@ export default function Navbar() {
               </button>
 
               {isProfileDropdownOpen && (
-                <div className="absolute right-0 mt-2.5 w-56 bg-white rounded-2xl shadow-xl border border-warm-200 p-2 text-xs font-bold text-gray-700 animate-fade-in z-50">
+                <div className="absolute right-0 mt-2.5 w-60 bg-white rounded-2xl shadow-xl border border-warm-200 p-2 text-xs font-bold text-gray-700 animate-fade-in z-50 space-y-1">
                   <div className="px-3.5 py-2 border-b border-warm-100 text-gray-900 mb-1">
                     <p className="font-extrabold">{currentUser.name}</p>
                     <p className="text-[10px] text-gray-500 font-medium truncate mt-0.5">{currentUser.email}</p>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-pink-700 bg-pink-50 px-2 py-0.5 rounded-full mt-1.5 inline-block">
+                      {isSister ? '👩‍🔧 Sister Studio' : '🛍️ Buyer Account'}
+                    </span>
                   </div>
-
-
 
                   <button
                     onClick={() => {
                       setIsProfileDropdownOpen(false);
                       logout();
                     }}
-                    className="w-full text-left px-3.5 py-2 hover:bg-red-50 text-red-600 hover:text-red-700 rounded-xl transition-all flex items-center gap-2"
+                    className="w-full text-left px-3.5 py-2 hover:bg-red-50 text-red-600 hover:text-red-700 rounded-xl transition-all flex items-center gap-2 cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Log Out</span>
@@ -424,31 +424,29 @@ export default function Navbar() {
               ) : (
                 <>
                   <button
-                    onClick={() => { setIsMobileMenuOpen(false); navigateTo('dashboard', null, 'shop'); }}
+                    onClick={() => { setIsMobileMenuOpen(false); navigateTo('dashboard', null, 'overview'); }}
                     className="w-full text-left px-4 py-2.5 hover:bg-pink-50 rounded-xl"
                   >
-                    My Dashboard
+                    Dashboard
                   </button>
                   <button
-                    onClick={() => { setIsMobileMenuOpen(false); navigateTo('dashboard', null, 'bookings'); }}
+                    onClick={() => { setIsMobileMenuOpen(false); navigateTo('dashboard', null, 'orders'); }}
                     className="w-full text-left px-4 py-2.5 hover:bg-pink-50 rounded-xl flex items-center justify-between"
                   >
-                    <span>Service Requests</span>
+                    <span>Requests</span>
                     {activeBookingsCount > 0 && <span className="bg-pink-100 text-brand-pink px-2 py-0.5 rounded-full font-black">{activeBookingsCount}</span>}
                   </button>
                 </>
               )}
               
               <div className="border-t border-warm-150 my-2 pt-2" />
-              
-
 
               <button
                 onClick={() => { setIsMobileMenuOpen(false); logout(); }}
                 className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 rounded-xl flex items-center gap-1.5"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Logout ({currentUser.name})</span>
+                <span>Log Out ({currentUser.name})</span>
               </button>
             </div>
           </div>
@@ -458,3 +456,4 @@ export default function Navbar() {
     </header>
   );
 }
+
