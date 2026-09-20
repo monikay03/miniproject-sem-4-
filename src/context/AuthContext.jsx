@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import API_URL from '../api';
 
 const AuthContext = createContext();
 const AUTH_STORAGE_KEY = 'udaan_auth_v5';
@@ -39,7 +40,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const res = await fetch('/auth/user');
+        const res = await fetch(`${API_URL}/auth/user`, {
+  credentials: 'include'
+});
         const data = await res.json();
         if (data.authenticated && data.user) {
           const isSellerRole = data.user.role === 'sister' || data.user.role === 'artisan';
@@ -173,7 +176,9 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await fetch('/auth/logout');
+      await fetch(`${API_URL}/auth/logout`, {
+  credentials: 'include'
+});
     } catch (e) {
       console.error("Failed backend logout", e);
     }

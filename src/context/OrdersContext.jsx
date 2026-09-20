@@ -1,3 +1,4 @@
+import API_URL from '../api';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 

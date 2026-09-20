@@ -1,3 +1,4 @@
+import API_URL from '../api';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import confetti from 'canvas-confetti';
@@ -63,7 +64,7 @@ export function SisterDashboardProvider({ children }) {
     if (!currentUser || !isSisterOrArtisan) return;
     setMetricsLoading(true);
     try {
-      const res = await fetch('/api/sister/metrics', { 
+      const res = await fetch(`${API_URL}/api/sister/metrics`, { 
         headers: getHeaders(),
         credentials: 'include'
       });
@@ -85,7 +86,7 @@ export function SisterDashboardProvider({ children }) {
     if (!currentUser || !isSisterOrArtisan) return;
     setOrdersLoading(true);
     try {
-      const res = await fetch('/api/sister/orders', { 
+      const res = await fetch(`${API_URL}/api/sister/orders`, { 
         headers: getHeaders(),
         credentials: 'include'
       });
@@ -106,7 +107,7 @@ export function SisterDashboardProvider({ children }) {
     if (!currentUser || !isSisterOrArtisan) return;
     setCatalogLoading(true);
     try {
-      const res = await fetch('/api/sister/products', { 
+      const res = await fetch(`${API_URL}/api/sister/products`, { 
         headers: getHeaders(),
         credentials: 'include'
       });
@@ -130,7 +131,7 @@ export function SisterDashboardProvider({ children }) {
     if (!currentUser || !isSisterOrArtisan) return;
     setProfileLoading(true);
     try {
-      const res = await fetch('/api/sister/profile', { 
+      const res = await fetch(`${API_URL}/api/sister/profile`, { 
         headers: getHeaders(),
         credentials: 'include'
       });
@@ -196,7 +197,7 @@ export function SisterDashboardProvider({ children }) {
     );
 
     try {
-      const res = await fetch(`/api/sister/orders/${orderId}`, {
+      const res = await fetch(`${API_URL}/api/sister/orders/${orderId}`, {
         method: 'PATCH',
         headers: getHeaders(),
         credentials: 'include',
@@ -249,7 +250,7 @@ export function SisterDashboardProvider({ children }) {
     };
 
     try {
-      const res = await fetch('/api/sister/products', {
+      const res = await fetch(`${API_URL}/api/sister/products`, {
         method: 'POST',
         headers: getHeaders(),
         credentials: 'include',
@@ -324,7 +325,7 @@ export function SisterDashboardProvider({ children }) {
     );
 
     try {
-      const res = await fetch(`/api/sister/products/${id}`, {
+      const res = await fetch(`${API_URL}/api/sister/products/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
         credentials: 'include',
@@ -369,7 +370,7 @@ export function SisterDashboardProvider({ children }) {
     setCatalogItems(prev => prev.filter(item => item.id !== id && item._id !== id));
 
     try {
-      const res = await fetch(`/api/sister/products/${id}`, {
+      const res = await fetch(`${API_URL}/api/sister/products/${id}`,  {
         method: 'DELETE',
         headers: getHeaders(),
         credentials: 'include'
@@ -392,7 +393,7 @@ export function SisterDashboardProvider({ children }) {
     setProfile(prev => ({ ...prev, ...profileData }));
 
     try {
-      const res = await fetch('/api/sister/profile', {
+      const res = await fetch(`${API_URL}/api/sister/profile`,  {
         method: 'PATCH',
         headers: getHeaders(),
         credentials: 'include',

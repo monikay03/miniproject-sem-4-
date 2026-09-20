@@ -1,3 +1,4 @@
+import API_URL from '../api';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { useAuth } from './AuthContext';
@@ -39,7 +40,9 @@ export function BookingProvider({ children }) {
         return;
       }
       try {
-        const res = await fetch('/api/bookings');
+        const res = await fetch(`${API_URL}/api/bookings`, {
+  credentials: 'include'
+});
         if (res.ok) {
           const data = await res.json();
           // Normalize Mongoose _id to id if frontend uses .id
@@ -72,11 +75,12 @@ export function BookingProvider({ children }) {
 
   const createBooking = async (bookingData) => {
     try {
-      const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookingData)
-      });
+      const res = await fetch(`${API_URL}/api/bookings`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+  body: JSON.stringify(bookingData)
+});
       if (res.ok) {
         const newBooking = await res.json();
         const normalized = { ...newBooking, id: newBooking._id || newBooking.id };
@@ -109,11 +113,12 @@ export function BookingProvider({ children }) {
 
   const updateBookingStatus = async (bookingId, status) => {
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
+      const res = await fetch(`${API_URL}/api/bookings/${bookingId}`, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+  body: JSON.stringify({ status })
+});
       if (res.ok) {
         const updated = await res.json();
         const normalized = { ...updated, id: updated._id || updated.id };
