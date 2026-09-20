@@ -7,6 +7,7 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "connect-mongo": "^6.0.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

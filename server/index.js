@@ -1,5 +1,6 @@
 import express from 'express';
 import session from 'express-session';
+import MongoStore from 'connect-mongo';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import cors from 'cors';
@@ -30,6 +31,12 @@ app.use(session({
   secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-key-12345',
   resave: false,
   saveUninitialized: false,
+
+  store: MongoStore.create({
+    mongoUrl: process.env.DATABASE_URL,
+    collectionName: 'sessions'
+  }),
+
   cookie: {
     secure: true,
     sameSite: 'none',
